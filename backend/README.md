@@ -3,6 +3,7 @@
 A full-stack web application that scans your Azure subscriptions for unused and unattached resources, calculates estimated monthly waste, and displays everything in a live dashboard with charts and filters.
 
 Built with **Node.js + Express** (backend) and **plain HTML/CSS/JS** (frontend). No build step required.
+<img width="1883" height="926" alt="image" src="https://github.com/user-attachments/assets/0d5817e4-da47-4719-8b11-2b226b0d53ac" />
 
 ---
 
