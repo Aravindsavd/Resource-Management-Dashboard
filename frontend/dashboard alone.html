@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CloudOps — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:#f0f3f7;color:#1a2535;font-size:14px}
+.page{padding:24px}
+.page-title{font-size:20px;font-weight:600;margin-bottom:4px}
+.page-sub{font-size:13px;color:#64748b;margin-bottom:20px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px}
+.card h3{font-size:14px;font-weight:600;margin-bottom:3px}
+.card p{font-size:12px;color:#64748b;margin-bottom:14px}
+.doughnut-wrap{display:flex;align-items:center;gap:16px}
+.doughnut-wrap canvas{max-width:130px;max-height:130px;flex-shrink:0}
+.legend{display:flex;flex-direction:column;gap:5px;flex:1;overflow-y:auto;max-height:140px}
+.leg-item{display:flex;align-items:center;gap:7px;font-size:11px}
+.leg-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.leg-val{margin-left:auto;font-weight:600;font-size:11px;white-space:nowrap}
+.no-data{text-align:center;padding:40px 10px;color:#94a3b8}
+.no-data i{font-size:28px;display:block;margin-bottom:8px}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-title">Dashboard</div>
+  <div class="page-sub">Overview of unused Azure resources and cost trends over time.</div>
+
+  <div class="grid3" id="dash-grid">
+
+    <!-- 1. Waste by Subscription -->
+    <div class="card">
+      <h3>Waste by Subscription</h3>
+      <p>Monthly cost per subscription</p>
+      <div class="doughnut-wrap">
+        <canvas id="chart-subpie"></canvas>
+        <div class="legend" id="subpie-legend"><div class="no-data"><i class="ti ti-chart-donut"></i>Loading…</div></div>
+      </div>
+    </div>
+
+    <!-- 2. Breakdown by Resource Type -->
+    <div class="card">
+      <h3>Breakdown by Resource Type</h3>
+      <p>All 9 types — cost share</p>
+      <div class="doughnut-wrap">
+        <canvas id="chart-donut"></canvas>
+        <div class="legend" id="donut-legend"><div class="no-data"><i class="ti ti-chart-donut"></i>Loading…</div></div>
+      </div>
+    </div>
+
+    <!-- 3. Resources by Subscription -->
+    <div class="card">
+      <h3>Resources by Subscription</h3>
+      <p>Count per subscription</p>
+      <canvas id="chart-subbar" height="160"></canvas>
+      <div class="no-data" id="nd-subbar" style="display:none"><i class="ti ti-chart-bar"></i>No data</div>
+    </div>
+
+    <!-- 4. Waste Trend -->
+    <div class="card">
+      <h3>Waste Trend</h3>
+      <p>Monthly cost over time</p>
+      <canvas id="chart-waste" height="160"></canvas>
+      <div class="no-data" id="nd-waste" style="display:none"><i class="ti ti-chart-line"></i>Run a few scans to see trend</div>
+    </div>
+
+    <!-- 5. Resource Count by Type -->
+    <div class="card">
+      <h3>Resource Count by Type</h3>
+      <p>Current scan — all 9 types</p>
+      <canvas id="chart-bar" height="160"></canvas>
+      <div class="no-data" id="nd-bar" style="display:none"><i class="ti ti-chart-bar"></i>No data</div>
+    </div>
+
+    <!-- 6. Resource Count Trend -->
+    <div class="card">
+      <h3>Resource Count Trend</h3>
+      <p>Total unused resources over time</p>
+      <canvas id="chart-count" height="160"></canvas>
+      <div class="no-data" id="nd-count" style="display:none"><i class="ti ti-chart-line"></i>Run a few scans to see trend</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:3000/api';
+const COLORS = ['#2563eb','#d97706','#dc2626','#7c3aed','#0891b2','#65a30d','#8b5cf6','#f59e0b','#06b6d4'];
+const LABELS = ['Stopped VMs','Unattached Disks','Public IPs','NICs','NSGs','Load Balancers','AKS Clusters','App Services','Container Apps'];
+const KEYS   = ['stoppedVMs','unattachedDisks','unattachedPIPs','unattachedNICs','unusedNSGs','emptyLBs','stoppedAKS','stoppedAppSvc','stoppedContainerApps'];
+const SUB_COLORS = ['#2563eb','#7c3aed','#0891b2','#65a30d','#d97706','#dc2626','#f59e0b','#8b5cf6','#06b6d4','#84cc16'];
+const instances = {};
+
+function destroy(id){ if(instances[id]){ instances[id].destroy(); delete instances[id]; } }
+
+async function load() {
+  // Load from cache first, then scan if needed
+  let data = null;
+  try {
+    const st = await fetch(`${API}/status`);
+    const status = await st.json();
+    if(status.cacheAvailable){
+      const r = await fetch(`${API}/scan`);
+      data = await r.json();
+    }
+  } catch(e) { console.error('API error:', e); }
+
+  if(!data || data.error) {
+    document.getElementById('dash-grid').innerHTML =
+      '<div style="grid-column:span 3;text-align:center;padding:60px;color:#94a3b8"><i class="ti ti-server-off" style="font-size:36px;display:block;margin-bottom:12px"></i>No data — open the full CloudOps app and run a scan first, or the backend is not running.</div>';
+    return;
+  }
+
+  renderAll(data);
+}
+
+function renderAll(data) {
+  const res  = data.resources || {};
+  const subs = data.subscriptions || [];
+  const history = [];
+
+  // Fetch history too
+  fetch(`${API}/history`).then(r=>r.json()).then(h=>{ renderTrends(h); }).catch(()=>{ renderTrends([]); });
+
+  // ── 1. Waste by Subscription ────────────────────────────────────────────
+  const allItems = Object.values(res).flat();
+  const subCosts  = subs.map(s => Math.round(allItems.filter(r=>r.subscriptionId===s.id).reduce((a,r)=>a+(r.estMonthlyCost||0),0)*100)/100);
+  const subCounts = subs.map(s => allItems.filter(r=>r.subscriptionId===s.id).length);
+  const shortNames = subs.map(s => s.name.replace('Aptean-Common-Tech-Prod','ACT-Prod').replace('Aptean-Common-Tech','ACT'));
+
+  destroy('subpie');
+  instances['subpie'] = new Chart(document.getElementById('chart-subpie').getContext('2d'),{
+    type:'doughnut',
+    data:{ labels:shortNames, datasets:[{ data:subCosts, backgroundColor:SUB_COLORS.slice(0,subs.length), borderWidth:2, borderColor:'#fff' }]},
+    options:{ responsive:true, maintainAspectRatio:true, cutout:'65%',
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:ctx=>' $'+ctx.raw+'/mo' }}}}
+  });
+  document.getElementById('subpie-legend').innerHTML = shortNames.map((n,i)=>`
+    <div class="leg-item">
+      <span class="leg-dot" style="background:${SUB_COLORS[i]}"></span>
+      <span>${n}</span>
+      <span class="leg-val">$${subCosts[i]}</span>
+    </div>`).join('');
+
+  // ── 2. Breakdown by Resource Type (all 9) ──────────────────────────────
+  const costs9  = KEYS.map(k=>{ const items=res[k]||[]; return Math.round(items.reduce((a,r)=>a+(r.estMonthlyCost||0),0)*100)/100; });
+  const counts9 = KEYS.map(k=>(res[k]||[]).length);
+  const data9   = costs9.map((c,i)=> c>0 ? c : Math.max(counts9[i]*0.3, 0.5));
+
+  destroy('donut');
+  instances['donut'] = new Chart(document.getElementById('chart-donut').getContext('2d'),{
+    type:'doughnut',
+    data:{ labels:LABELS, datasets:[{ data:data9, backgroundColor:COLORS, borderWidth:2, borderColor:'#fff' }]},
+    options:{ responsive:true, maintainAspectRatio:true, cutout:'62%',
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:ctx=>{ const i=ctx.dataIndex; return costs9[i]>0?' $'+costs9[i]+'/mo':' '+counts9[i]+' items'; }}}}}
+  });
+  document.getElementById('donut-legend').innerHTML = LABELS.map((l,i)=>`
+    <div class="leg-item">
+      <span class="leg-dot" style="background:${COLORS[i]}"></span>
+      <span>${l}</span>
+      <span class="leg-val">${costs9[i]>0?'$'+costs9[i]:counts9[i]+' items'}</span>
+    </div>`).join('');
+
+  // ── 3. Resources by Subscription (bar) ─────────────────────────────────
+  destroy('subbar');
+  instances['subbar'] = new Chart(document.getElementById('chart-subbar').getContext('2d'),{
+    type:'bar',
+    data:{ labels:shortNames, datasets:[{ data:subCounts, backgroundColor:SUB_COLORS.slice(0,subs.length), borderRadius:6, borderSkipped:false }]},
+    options:{ responsive:true, maintainAspectRatio:true,
+      plugins:{ legend:{display:false} },
+      scales:{ y:{ beginAtZero:true, ticks:{stepSize:1} }}}
+  });
+
+  // ── 5. Resource Count by Type (bar, all 9) ─────────────────────────────
+  destroy('bar');
+  const shortLabels = ['VMs','Disks','PIPs','NICs','NSGs','LBs','AKS','App Svc','CA'];
+  instances['bar'] = new Chart(document.getElementById('chart-bar').getContext('2d'),{
+    type:'bar',
+    data:{ labels:shortLabels, datasets:[{ data:counts9, backgroundColor:COLORS, borderRadius:6, borderSkipped:false }]},
+    options:{ responsive:true, maintainAspectRatio:true,
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:ctx=>' '+ctx.raw+' resources' }}},
+      scales:{ y:{ beginAtZero:true, ticks:{stepSize:1} }, x:{ ticks:{ font:{size:10} }}}}
+  });
+}
+
+function renderTrends(history) {
+  // ── 4. Waste Trend ──────────────────────────────────────────────────────
+  destroy('waste');
+  if(history.length < 2){
+    document.getElementById('chart-waste').style.display='none';
+    document.getElementById('nd-waste').style.display='';
+  } else {
+    document.getElementById('chart-waste').style.display='';
+    document.getElementById('nd-waste').style.display='none';
+    instances['waste'] = new Chart(document.getElementById('chart-waste').getContext('2d'),{
+      type:'line',
+      data:{ labels:history.map(h=>h.date), datasets:[{
+        label:'Monthly Waste ($)', data:history.map(h=>h.totalWaste),
+        borderColor:'#dc2626', backgroundColor:'rgba(220,38,38,0.08)',
+        tension:0.4, fill:true, pointRadius:4, pointBackgroundColor:'#dc2626'
+      }]},
+      options:{ responsive:true, maintainAspectRatio:true,
+        plugins:{ legend:{display:false} },
+        scales:{ y:{ beginAtZero:true, ticks:{ callback:v=>'$'+v }}, x:{ ticks:{ maxTicksLimit:6 }}}}
+    });
+  }
+
+  // ── 6. Resource Count Trend ─────────────────────────────────────────────
+  destroy('count');
+  if(history.length < 2){
+    document.getElementById('chart-count').style.display='none';
+    document.getElementById('nd-count').style.display='';
+  } else {
+    document.getElementById('chart-count').style.display='';
+    document.getElementById('nd-count').style.display='none';
+    instances['count'] = new Chart(document.getElementById('chart-count').getContext('2d'),{
+      type:'line',
+      data:{ labels:history.map(h=>h.date), datasets:[{
+        label:'Unused Resources', data:history.map(h=>h.totalUnused),
+        borderColor:'#2563eb', backgroundColor:'rgba(37,99,235,0.08)',
+        tension:0.4, fill:true, pointRadius:4, pointBackgroundColor:'#2563eb'
+      }]},
+      options:{ responsive:true, maintainAspectRatio:true,
+        plugins:{ legend:{display:false} },
+        scales:{ y:{ beginAtZero:true }, x:{ ticks:{ maxTicksLimit:6 }}}}
+    });
+  }
+}
+
+load();
+</script>
+</body>
+</html>

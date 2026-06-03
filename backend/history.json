@@ -1,0 +1,35 @@
+[
+  {
+    "date": "2026-05-29",
+    "totalUnused": 108,
+    "totalWaste": 1683.08,
+    "stoppedVMs": 11,
+    "unattachedDisks": 28,
+    "unattachedPIPs": 3,
+    "unattachedNICs": 26,
+    "unusedNSGs": 36,
+    "emptyLBs": 4
+  },
+  {
+    "date": "2026-06-01",
+    "totalUnused": 125,
+    "totalWaste": 2493.08,
+    "stoppedVMs": 11,
+    "unattachedDisks": 28,
+    "unattachedPIPs": 3,
+    "unattachedNICs": 26,
+    "unusedNSGs": 36,
+    "emptyLBs": 4
+  },
+  {
+    "date": "2026-06-03",
+    "totalUnused": 125,
+    "totalWaste": 2633.08,
+    "stoppedVMs": 11,
+    "unattachedDisks": 28,
+    "unattachedPIPs": 3,
+    "unattachedNICs": 26,
+    "unusedNSGs": 36,
+    "emptyLBs": 4
+  }
+]

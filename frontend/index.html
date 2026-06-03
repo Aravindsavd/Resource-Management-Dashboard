@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CloudOps — Azure Resource Audit</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --sb:#0f1923;--sb-hover:#1a2535;--sb-active:#1e2d42;--sb-text:#8fa3b8;--sb-active-text:#e8f0f8;
+  --bg:#f0f3f7;--surf:#fff;--brd:#e2e8f0;--txt:#1a2535;--muted:#64748b;--light:#94a3b8;
+  --blue:#2563eb;--blue-lt:#eff6ff;--blue-dk:#1d4ed8;
+  --red:#dc2626;--red-lt:#fef2f2;
+  --warn:#d97706;--warn-lt:#fffbeb;
+  --green:#16a34a;--green-lt:#f0fdf4;
+  --orange:#ea580c;--orange-lt:#fff7ed;
+  --r:8px;--rl:12px;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh;font-size:14px}
+a{text-decoration:none;color:inherit}
+
+/* sidebar */
+.sb{width:220px;min-height:100vh;background:var(--sb);display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0;z-index:10}
+.sb-logo{padding:20px 20px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,0.06)}
+.sb-logo-icon{width:32px;height:32px;background:var(--blue);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:17px}
+.sb-logo-text{font-size:15px;font-weight:600;color:#e8f0f8}
+.sb-sec{padding:20px 12px 6px;font-size:10px;font-weight:600;color:#3d5470;letter-spacing:1.2px;text-transform:uppercase}
+.nav{display:flex;align-items:center;gap:10px;padding:9px 12px;margin:1px 8px;border-radius:7px;color:var(--sb-text);cursor:pointer;transition:.15s;font-size:13px}
+.nav:hover{background:var(--sb-hover);color:#c5d5e8}
+.nav.active{background:var(--sb-active);color:var(--sb-active-text);font-weight:500}
+.nav i{font-size:17px;width:20px;text-align:center}
+.nav-badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px}
+
+/* main */
+.main{margin-left:220px;flex:1;display:flex;flex-direction:column}
+.topbar{background:var(--surf);border-bottom:1px solid var(--brd);padding:0 28px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:5}
+.tb-left{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.tb-left b{color:var(--txt);font-weight:500}
+.tb-right{display:flex;align-items:center;gap:12px}
+
+/* content */
+.content{padding:28px;flex:1}
+.page-title{font-size:22px;font-weight:600;letter-spacing:-.5px;margin-bottom:4px}
+.page-sub{font-size:13px;color:var(--muted);margin-bottom:24px}
+
+/* stat cards */
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.stat{background:var(--surf);border:1px solid var(--brd);border-radius:var(--rl);padding:18px 20px;display:flex;align-items:flex-start;gap:14px}
+.stat-icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.si-gray{background:#f1f5f9;color:var(--muted)}
+.si-red{background:var(--red-lt);color:var(--red)}
+.si-orange{background:var(--orange-lt);color:var(--orange)}
+.si-green{background:var(--green-lt);color:var(--green)}
+.stat-label{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.stat-val{font-size:26px;font-weight:600;letter-spacing:-1px;line-height:1}
+.sv-red{color:var(--red)}.sv-orange{color:var(--orange)}.sv-green{color:var(--green)}
+.stat-note{font-size:11px;color:var(--light);margin-top:3px}
+
+/* scan banner */
+.scan-banner{background:var(--sb);border-radius:var(--rl);padding:18px 24px;margin-bottom:22px;display:flex;align-items:center;justify-content:space-between}
+.scan-info{display:flex;align-items:center;gap:14px;color:#fff}
+.scan-icon{width:38px;height:38px;background:rgba(255,255,255,0.1);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:19px}
+.scan-title{font-size:13px;font-weight:600;margin-bottom:2px}
+.scan-sub{font-size:12px;opacity:.55}
+.btn-scan{background:#fff;color:var(--sb);padding:8px 18px;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;border:none;font-family:inherit;display:flex;align-items:center;gap:6px;transition:.15s}
+.btn-scan:hover{background:#e8f0f8}
+.btn-scan:disabled{opacity:.6;cursor:not-allowed}
+
+/* resource tabs */
+.res-tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.rtab{display:flex;align-items:center;gap:6px;padding:6px 14px;background:var(--surf);border:1px solid var(--brd);border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;transition:.15s;color:var(--muted)}
+.rtab:hover{border-color:var(--blue);color:var(--blue)}
+.rtab.active{background:var(--blue-lt);border-color:var(--blue);color:var(--blue)}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+
+/* table card */
+.tcard{background:var(--surf);border:1px solid var(--brd);border-radius:var(--rl);overflow:hidden}
+.toolbar{padding:14px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--brd);gap:12px;flex-wrap:wrap}
+.tabs{display:flex;gap:4px}
+.tab{padding:6px 14px;border-radius:6px;border:1px solid transparent;font-size:13px;font-weight:500;cursor:pointer;transition:.15s;background:transparent;color:var(--muted);font-family:inherit}
+.tab:hover{background:var(--bg);color:var(--txt)}
+.tab.active{background:var(--blue);color:#fff}
+.tc{font-size:11px;opacity:.8;margin-left:3px}
+.tr-right{display:flex;align-items:center;gap:8px}
+.sbox{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--brd);border-radius:7px;padding:7px 12px;width:280px}
+.sbox i{color:var(--muted);font-size:15px}
+.sbox input{border:none;background:transparent;outline:none;font-size:13px;color:var(--txt);width:100%;font-family:inherit}
+.sbox input::placeholder{color:var(--light)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;transition:.15s;border:none;font-family:inherit;white-space:nowrap}
+.btn-pri{background:var(--blue);color:#fff}.btn-pri:hover{background:var(--blue-dk)}
+.btn-out{background:var(--surf);color:var(--txt);border:1px solid var(--brd)}.btn-out:hover{background:var(--bg)}
+.btn-dng{background:var(--red);color:#fff}.btn-dng:hover{background:#b91c1c}
+
+/* table */
+.twrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+thead tr{background:var(--bg)}
+th{padding:10px 14px;text-align:left;font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);white-space:nowrap;border-bottom:1px solid var(--brd)}
+td{padding:12px 14px;border-bottom:1px solid var(--brd);vertical-align:middle;overflow:hidden;text-overflow:ellipsis}
+tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:#fafbfd}
+.vm-name{font-weight:500;color:var(--blue);font-size:13px;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vm-rg{font-size:11px;color:var(--muted);margin-top:2px;font-family:'DM Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sub-name{font-size:12px;color:var(--muted)}
+.sub-id{font-size:10px;color:var(--light);font-family:'DM Mono',monospace;margin-top:1px}
+.size-tag{display:inline-block;margin-top:3px;font-size:10px;font-weight:500;font-family:'DM Mono',monospace;background:var(--bg);border:1px solid var(--brd);color:var(--muted);padding:1px 7px;border-radius:4px}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.badge::before{content:'';width:6px;height:6px;border-radius:50%}
+.bd{background:#f0fdf4;color:#15803d}.bd::before{background:#16a34a}
+.bs{background:#fef2f2;color:#b91c1c}.bs::before{background:#dc2626}
+.bu{background:#fffbeb;color:#92400e}.bu::before{background:#d97706}
+.bn{background:#f8fafc;color:#475569}.bn::before{background:#94a3b8}
+.billed-warn{font-size:11px;color:var(--red);margin-top:2px;font-weight:600}
+.free-note{font-size:11px;color:var(--green);margin-top:2px}
+.dur{display:flex;align-items:center;gap:5px;font-size:13px}
+.dur.hi{color:var(--red)}.dur.hi i{color:var(--red)}
+.dur.md{color:var(--warn)}.dur.md i{color:var(--warn)}
+.cost-v{font-size:14px;font-weight:600}
+.cost-n{font-size:11px;color:var(--muted);margin-top:1px}
+.btn-det{background:transparent;border:1px solid var(--brd);color:var(--muted);padding:4px 12px;border-radius:6px;font-size:12px;cursor:pointer;transition:.15s;font-family:inherit;font-weight:500}
+.btn-det:hover{background:var(--bg);color:var(--txt)}
+
+/* loading / empty */
+.state-row td{text-align:center;padding:60px 20px;color:var(--muted)}
+.state-row i{font-size:36px;display:block;margin-bottom:10px;color:var(--light)}
+.spin{display:inline-block;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* pagination */
+.pag{padding:14px 18px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--brd)}
+.pag-info{font-size:12px;color:var(--muted)}
+.pag-btns{display:flex;gap:4px}
+.pb{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:6px;border:1px solid var(--brd);cursor:pointer;font-size:12px;font-weight:500;transition:.15s;background:var(--surf);color:var(--txt)}
+.pb:hover{background:var(--bg)}
+.pb.act{background:var(--blue);color:#fff;border-color:var(--blue)}
+
+/* toast */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--sb);color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:999;transition:opacity .3s;display:flex;align-items:center;gap:8px}
+.toast.hide{opacity:0;pointer-events:none}
+
+/* detail modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.overlay.show{opacity:1;pointer-events:all}
+.modal{background:var(--surf);border-radius:var(--rl);width:520px;max-width:90vw;max-height:80vh;overflow-y:auto;border:1px solid var(--brd)}
+.modal-hd{padding:20px 24px 16px;border-bottom:1px solid var(--brd);display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-size:16px;font-weight:600}
+.modal-close{width:30px;height:30px;border-radius:6px;border:1px solid var(--brd);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--muted);font-family:inherit}
+.modal-close:hover{background:var(--bg)}
+.modal-body{padding:20px 24px}
+.detail-row{display:flex;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--brd);gap:12px}
+.detail-row:last-child{border-bottom:none}
+.detail-key{font-size:12px;color:var(--muted);width:160px;flex-shrink:0;padding-top:1px}
+.detail-val{font-size:13px;font-weight:500;word-break:break-all}
+.detail-mono{font-family:'DM Mono',monospace;font-size:12px}
+.tags-wrap{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.tag-pill{background:var(--blue-lt);color:#1e40af;font-size:11px;padding:2px 9px;border-radius:12px;font-weight:500}
+
+.chart-card{background:var(--surf);border:1px solid var(--brd);border-radius:var(--rl);padding:20px 24px}
+.chart-card h3{font-size:14px;font-weight:600;margin-bottom:4px}
+.chart-card p{font-size:12px;color:var(--muted);margin-bottom:16px}
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+.chart-grid.full{grid-template-columns:1fr}
+.doughnut-wrap{display:flex;align-items:center;gap:24px}
+.doughnut-wrap canvas{max-width:180px;max-height:180px}
+.legend{display:flex;flex-direction:column;gap:4px;flex:1}
+.leg-item{display:flex;align-items:center;gap:7px;font-size:11px;padding:2px 0}
+.leg-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.leg-val{margin-left:auto;font-weight:600;font-size:13px}
+.no-data{text-align:center;padding:40px;color:var(--muted);font-size:13px}
+.no-data i{font-size:32px;display:block;margin-bottom:8px;color:var(--light)}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:10px}
+</style>
+</head>
+<body>
+
+<aside class="sb">
+  <div class="sb-logo">
+    <div class="sb-logo-icon"><i class="ti ti-cloud"></i></div>
+    <span class="sb-logo-text">CloudOps</span>
+  </div>
+  <div class="sb-sec">Main</div>
+  <a class="nav" id="nav-dashboard" href="#" onclick="setPage('dashboard')"><i class="ti ti-layout-dashboard"></i>Dashboard</a>
+  <a class="nav active" href="#" id="nav-vms" onclick="setPage('stoppedVMs')"><i class="ti ti-server"></i>Stopped VMs<span class="nav-badge" id="nb-vms">—</span></a>
+  <a class="nav" href="#" id="nav-disks" onclick="setPage('unattachedDisks')"><i class="ti ti-device-floppy"></i>Unattached Disks<span class="nav-badge" id="nb-disks" style="background:var(--warn)">—</span></a>
+  <a class="nav" href="#" id="nav-pips" onclick="setPage('unattachedPIPs')"><i class="ti ti-world"></i>Public IP Addresses<span class="nav-badge" id="nb-pips" style="background:var(--warn)">—</span></a>
+  <a class="nav" href="#" id="nav-nics" onclick="setPage('unattachedNICs')"><i class="ti ti-plug"></i>Unattached NICs<span class="nav-badge" id="nb-nics" style="background:var(--muted)">—</span></a>
+  <a class="nav" href="#" id="nav-nsgs" onclick="setPage('unusedNSGs')"><i class="ti ti-shield"></i>Unused NSGs<span class="nav-badge" id="nb-nsgs" style="background:var(--muted)">—</span></a>
+  <a class="nav" href="#" id="nav-lbs" onclick="setPage('emptyLBs')"><i class="ti ti-adjustments-horizontal"></i>Empty Load Balancers<span class="nav-badge" id="nb-lbs" style="background:var(--orange)">—</span></a>
+  <a class="nav" href="#" id="nav-aks" onclick="setPage('stoppedAKS')"><i class="ti ti-brand-docker"></i>AKS Clusters<span class="nav-badge" id="nb-aks" style="background:var(--blue)">—</span></a>
+  <a class="nav" href="#" id="nav-appsvc" onclick="setPage('stoppedAppSvc')"><i class="ti ti-world-www"></i>App Services<span class="nav-badge" id="nb-appsvc" style="background:var(--blue)">—</span></a>
+  <a class="nav" href="#" id="nav-ca" onclick="setPage('stoppedContainerApps')"><i class="ti ti-box"></i>Container Apps<span class="nav-badge" id="nb-ca" style="background:var(--blue)">—</span></a>
+
+
+
+</aside>
+
+<main class="main">
+  <div class="topbar">
+    <div class="tb-left">
+      <b id="page-label">Stopped &amp; Deallocated VMs</b>
+    </div>
+  </div>
+
+  <div class="content">
+    <h1 class="page-title" id="pg-title">Stopped &amp; Deallocated VMs</h1>
+    <p class="page-sub" id="pg-sub">Audit unused Virtual Machines, detect billed compute states, and track immediate cost-savings opportunities.</p>
+
+    <div class="stat-grid" id="stat-grid"></div>
+
+    <div class="scan-banner">
+      <div class="scan-info">
+        <div class="scan-icon"><i class="ti ti-refresh"></i></div>
+        <div>
+          <div class="scan-title" id="scan-title">Connecting to Azure...</div>
+          <div class="scan-sub" id="scan-sub">Fetching resource data</div>
+        </div>
+      </div>
+      <button class="btn-scan" id="scan-btn" onclick="runScan(true)">
+        <i class="ti ti-radar"></i>Run Scan Now
+      </button>
+    </div>
+
+    <!-- Dashboard view — 3x3 grid -->
+    <div id="dash-view" style="display:none">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+
+        <!-- Row 1: Waste by Sub | Breakdown by Type (all 9) | Resources by Sub -->
+        <div class="chart-card">
+          <h3>Waste by Subscription</h3>
+          <p>Monthly cost per subscription</p>
+          <div class="doughnut-wrap" style="gap:12px">
+            <canvas id="chart-subpie" style="max-width:120px;max-height:120px"></canvas>
+            <div class="legend" id="subpie-legend" style="font-size:11px"></div>
+          </div>
+          <div class="no-data" id="nd-subpie" style="display:none"><i class="ti ti-chart-donut"></i>No data yet</div>
+        </div>
+
+        <div class="chart-card">
+          <h3>Breakdown by Resource Type</h3>
+          <p>All 9 types — cost share</p>
+          <div class="doughnut-wrap" style="gap:10px">
+            <canvas id="chart-donut" style="max-width:110px;max-height:110px;flex-shrink:0"></canvas>
+            <div id="donut-legend" style="font-size:11px;overflow-y:auto;max-height:150px;flex:1"></div>
+          </div>
+          <div class="no-data" id="nd-donut" style="display:none"><i class="ti ti-chart-donut"></i>No data yet</div>
+        </div>
+
+        <div class="chart-card">
+          <h3>Resources by Subscription</h3>
+          <p>Count per subscription</p>
+          <canvas id="chart-subbar" height="160"></canvas>
+          <div class="no-data" id="nd-subbar" style="display:none"><i class="ti ti-chart-bar"></i>No data yet</div>
+        </div>
+
+        <!-- Row 2: Waste Trend | Resource Count by Type | Count Trend -->
+        <div class="chart-card">
+          <h3>Waste Trend</h3>
+          <p>Monthly cost over time</p>
+          <canvas id="chart-waste" height="160"></canvas>
+          <div class="no-data" id="nd-waste" style="display:none"><i class="ti ti-chart-line"></i>Run a few scans to see trend data</div>
+        </div>
+
+        <div class="chart-card">
+          <h3>Resource Count by Type</h3>
+          <p>Current scan — all 9 types</p>
+          <canvas id="chart-bar" height="160"></canvas>
+          <div class="no-data" id="nd-bar" style="display:none"><i class="ti ti-chart-bar"></i>No data yet</div>
+        </div>
+
+        <div class="chart-card">
+          <h3>Resource Count Trend</h3>
+          <p>Total unused resources over time</p>
+          <canvas id="chart-count" height="160"></canvas>
+          <div class="no-data" id="nd-count" style="display:none"><i class="ti ti-chart-line"></i>Run a few scans to see trend data</div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Table view -->
+    <div id="table-view">
+    <div class="tcard">
+      <div class="toolbar">
+        <div class="tabs" id="filter-tabs">
+          <button class="tab active" onclick="setTab('all',this)">All <span class="tc" id="tc-all">0</span></button>
+          <button class="tab" onclick="setTab('deallocated',this)" id="tab-deal">Deallocated <span class="tc" id="tc-deal">0</span></button>
+          <button class="tab" onclick="setTab('billed',this)" id="tab-bill" style="color:var(--red)">Still Billed <span class="tc" id="tc-bill">0</span></button>
+        </div>
+        <div class="tr-right">
+          <select id="filter-sub" onchange="applyFilters()" style="padding:7px 10px;border-radius:7px;border:1px solid var(--brd);background:var(--bg);font-size:13px;color:var(--txt);font-family:inherit;cursor:pointer">
+            <option value="">All Subscriptions</option>
+          </select>
+          <select id="filter-loc" onchange="applyFilters()" style="padding:7px 10px;border-radius:7px;border:1px solid var(--brd);background:var(--bg);font-size:13px;color:var(--txt);font-family:inherit;cursor:pointer">
+            <option value="">All Locations</option>
+          </select>
+          <div class="sbox">
+            <i class="ti ti-search"></i>
+            <input type="text" id="search" placeholder="Search name, resource group…" oninput="applyFilters()">
+          </div>
+          <button class="btn btn-out" onclick="exportCSV()"><i class="ti ti-download"></i>Export CSV</button>
+          <button class="btn btn-pri"><i class="ti ti-table-export"></i>Export Excel</button>
+        </div>
+      </div>
+
+      <div class="twrap">
+        <table>
+          <thead id="tbl-head"></thead>
+          <tbody id="tbl-body"></tbody>
+        </table>
+      </div>
+
+      <div class="pag">
+        <span class="pag-info" id="pag-info">—</span>
+        <div class="pag-btns" id="pag-btns"></div>
+      </div>
+    </div>
+    </div><!-- /table-view -->
+  </div>
+</main>
+
+<div class="overlay" id="overlay" onclick="closeModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-hd">
+      <span class="modal-title" id="modal-title">Resource Details</span>
+      <button class="modal-close" onclick="closeModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<div class="toast hide" id="toast"><i class="ti ti-info-circle"></i><span id="toast-msg"></span></div>
+
+<script>
+const API = 'http://localhost:3000/api';
+const PAGE_SIZE = 15;
+
+const PAGES = {
+  dashboard:       { title:'Dashboard',                     sub:'Overview of unused Azure resources and cost trends over time.', label:'Dashboard', navId:'nav-dashboard' },
+  stoppedVMs:      { title:'Stopped & Deallocated VMs',    sub:'Audit unused Virtual Machines, detect billed compute states, and track immediate cost-savings opportunities.', label:'Stopped & Deallocated VMs', navId:'nav-vms' },
+  unattachedDisks: { title:'Unattached Managed Disks',     sub:'Managed disks not attached to any VM — still incurring storage charges.', label:'Unattached Disks', navId:'nav-disks' },
+  unattachedPIPs:  { title:'Unattached Public IP Addresses',sub:'Public IPs not associated with any NIC or Load Balancer — billed while idle.', label:'Public IPs', navId:'nav-pips' },
+  unattachedNICs:  { title:'Unattached Network Interfaces', sub:'NICs with no VM attached — may be holding Public IPs.', label:'Unattached NICs', navId:'nav-nics' },
+  unusedNSGs:      { title:'Unused Network Security Groups',sub:'NSGs not associated with any subnet or NIC.', label:'Unused NSGs', navId:'nav-nsgs' },
+  emptyLBs:        { title:'Empty Load Balancers',          sub:'Load Balancers with no backend pool members.', label:'Empty Load Balancers', navId:'nav-lbs' },
+  stoppedAKS:      { title:'Stopped AKS Clusters',            sub:'AKS clusters in stopped state — node VMs still incur charges.', label:'AKS Clusters', navId:'nav-aks' },
+  stoppedAppSvc:   { title:'Stopped App Services',            sub:'Stopped web apps and function apps — App Service Plan still billed.', label:'App Services', navId:'nav-appsvc' },
+  stoppedContainerApps: { title:'Stopped Container Apps',     sub:'Container Apps with zero replicas or stopped state.', label:'Container Apps', navId:'nav-ca' },
+};
+
+const RES_TAB_COLORS = { stoppedVMs:'#2563eb', unattachedDisks:'#d97706', unattachedPIPs:'#dc2626', unattachedNICs:'#7c3aed', unusedNSGs:'#0891b2', emptyLBs:'#65a30d' };
+
+let state = { data: null, currentPage: 'stoppedVMs', tab: 'all', page: 1, filtered: [] };
+
+function toast(msg, dur=3000) {
+  const t=document.getElementById('toast');
+  document.getElementById('toast-msg').textContent=msg;
+  t.classList.remove('hide');
+  clearTimeout(t._t);
+  t._t=setTimeout(()=>t.classList.add('hide'),dur);
+}
+
+async function runScan(force=false) {
+  const btn=document.getElementById('scan-btn');
+  btn.disabled=true;
+  btn.innerHTML='<i class="ti ti-refresh spin"></i>Scanning…';
+  document.getElementById('scan-title').textContent='Scanning Azure…';
+  document.getElementById('scan-sub').textContent='This may take 1–3 minutes across all subscriptions. Please wait.';
+  setTableLoading();
+  toast('Scanning Azure… this may take a few minutes.', 180000);
+
+  // Start scan with a long timeout (5 min)
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 300000);
+
+  try {
+    const res = await fetch(`${API}/scan${force?'?force=true':''}`, { signal: controller.signal });
+    clearTimeout(timeout);
+    if(!res.ok) {
+      const errText = await res.text();
+      throw new Error(errText);
+    }
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+    state.data = data;
+    updateUI();
+    if(state.currentPage==='dashboard') setTimeout(()=>renderDashboard(), 100);
+    toast(data.fromCache ? 'Loaded from cache' : `Scan complete — ${data.summary?.totalUnused ?? 0} unused resources found!`, 5000);
+  } catch(e) {
+    clearTimeout(timeout);
+    if(e.name === 'AbortError') {
+      document.getElementById('scan-title').textContent='Scan timed out';
+      document.getElementById('scan-sub').textContent='Azure scan took too long. Try scoping to one subscription.';
+      toast('Scan timed out after 5 minutes', 5000);
+    } else {
+      document.getElementById('scan-title').textContent='Connection failed';
+      document.getElementById('scan-sub').textContent='Make sure the backend is running: node server.js';
+      toast('Error: ' + e.message.slice(0,100), 6000);
+    }
+  } finally {
+    btn.disabled=false;
+    btn.innerHTML='<i class="ti ti-radar"></i>Run Scan Now';
+  }
+}
+
+function updateUI() {
+  const s = state.data?.summary;
+  if(!s) return;
+  const ts = s.scannedAt ? new Date(s.scannedAt) : null;
+  document.getElementById('scan-title').textContent = ts ? 'Last scan: '+ts.toLocaleDateString()+' at '+ts.toLocaleTimeString() : 'Scan complete';
+  document.getElementById('scan-sub').textContent = s.totalUnused+' unused resources found across all subscriptions';
+  document.getElementById('nb-vms').textContent   = s.totalStoppedVMs ?? 0;
+  document.getElementById('nb-disks').textContent = s.unattachedDisks ?? 0;
+  document.getElementById('nb-pips').textContent  = s.unattachedPIPs ?? 0;
+  document.getElementById('nb-nics').textContent  = s.unattachedNICs ?? 0;
+  document.getElementById('nb-nsgs').textContent  = s.unusedNSGs ?? 0;
+  document.getElementById('nb-lbs').textContent    = s.emptyLBs ?? 0;
+  document.getElementById('nb-aks').textContent    = s.stoppedAKS ?? 0;
+  document.getElementById('nb-appsvc').textContent = s.stoppedAppSvc ?? 0;
+  document.getElementById('nb-ca').textContent     = s.stoppedContainerApps ?? 0;
+  // Hide badges if zero
+  ['nb-aks','nb-appsvc','nb-ca'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display=el.textContent==='0'?'none':''; });
+  renderStatCards();
+  renderCurrentPage();
+}
+
+function renderStatCards() {
+  const s = state.data?.summary;
+  const res = state.data?.resources;
+  if(!s || !res) return;
+  const pg = state.currentPage;
+  const pageItems = res[pg] || [];
+  const pageCost = pageItems.reduce((a,r)=>a+(r.estMonthlyCost||0),0);
+  const fc = v => '$'+Math.round(v).toLocaleString();
+  let cards = [];
+
+  if(pg==='dashboard') {
+    cards=[
+      {icon:'ti-server',cls:'si-gray',label:'Total Unused Resources',val:s.totalUnused,note:'Across all subscriptions'},
+      {icon:'ti-alert-triangle',cls:'si-orange',label:'Monthly Waste',val:fc(s.totalMonthlyWaste),note:'All unused resources',vc:'sv-orange'},
+      {icon:'ti-device-floppy',cls:'si-orange',label:'Unattached Disks',val:s.unattachedDisks,note:'Still incurring charges'},
+      {icon:'ti-leaf',cls:'si-green',label:'Disk Waste/mo',val:fc((res.unattachedDisks||[]).reduce((a,r)=>a+(r.estMonthlyCost||0),0)),note:'Unattached disk cost',vc:'sv-green'},
+    ];
+  } else if(pg==='stoppedVMs') {
+    const billed=(res.stoppedVMs||[]).filter(v=>v.stillBilled).length;
+    cards=[
+      {icon:'ti-server',cls:'si-gray',label:'Total Stopped VMs',val:s.totalStoppedVMs,note:'Deallocated + stopped'},
+      {icon:'ti-alert-circle',cls:'si-red',label:'Still Billed',val:billed,note:'OS-stopped — compute still charged',vc:'sv-red'},
+      {icon:'ti-currency-dollar',cls:'si-orange',label:'Est. Disk + IP Cost',val:fc(pageCost),note:'Stopped VM ongoing charges',vc:'sv-orange'},
+      {icon:'ti-info-circle',cls:'si-gray',label:'Deallocated',val:s.totalStoppedVMs-billed,note:'Compute FREE (disks still billed)'},
+    ];
+  } else if(pg==='unattachedDisks') {
+    const prem=(res.unattachedDisks||[]).filter(d=>d.sku&&d.sku.includes('Premium')).length;
+    cards=[
+      {icon:'ti-device-floppy',cls:'si-gray',label:'Unattached Disks',val:s.unattachedDisks,note:'Not attached to any VM'},
+      {icon:'ti-currency-dollar',cls:'si-orange',label:'Monthly Waste',val:fc(pageCost),note:'Disk storage charges',vc:'sv-orange'},
+      {icon:'ti-bolt',cls:'si-red',label:'Premium SSD',val:prem,note:'Higher cost tier'},
+      {icon:'ti-database',cls:'si-green',label:'Standard Disks',val:s.unattachedDisks-prem,note:'Lower cost tier'},
+    ];
+  } else if(pg==='unattachedPIPs') {
+    const std=(res.unattachedPIPs||[]).filter(p=>p.sku==='Standard').length;
+    cards=[
+      {icon:'ti-world',cls:'si-gray',label:'Unattached Public IPs',val:s.unattachedPIPs,note:'Not attached to NIC or NAT GW'},
+      {icon:'ti-currency-dollar',cls:'si-orange',label:'Monthly Waste',val:fc(pageCost),note:'Idle IP charges',vc:'sv-orange'},
+      {icon:'ti-bolt',cls:'si-red',label:'Standard SKU',val:std,note:'~$3.65/mo each'},
+      {icon:'ti-circle',cls:'si-gray',label:'Basic SKU',val:s.unattachedPIPs-std,note:'~$1.46/mo each'},
+    ];
+  } else if(pg==='unattachedNICs') {
+    cards=[
+      {icon:'ti-plug',cls:'si-gray',label:'Unattached NICs',val:s.unattachedNICs,note:'No VM attached'},
+      {icon:'ti-currency-dollar',cls:'si-green',label:'Direct NIC Cost',val:'$0',note:'NICs are free',vc:'sv-green'},
+      {icon:'ti-world',cls:'si-orange',label:'May Hold Public IPs',val:s.unattachedNICs,note:'Check each for attached PIPs'},
+      {icon:'ti-trash',cls:'si-gray',label:'Safe to Review',val:s.unattachedNICs,note:'Clean up to reduce clutter'},
+    ];
+  } else if(pg==='unusedNSGs') {
+    cards=[
+      {icon:'ti-shield',cls:'si-gray',label:'Unused NSGs',val:s.unusedNSGs,note:'No subnet or NIC association'},
+      {icon:'ti-currency-dollar',cls:'si-green',label:'Direct NSG Cost',val:'$0',note:'NSGs are free',vc:'sv-green'},
+      {icon:'ti-alert-triangle',cls:'si-orange',label:'Security Hygiene',val:s.unusedNSGs,note:'Orphaned rules cause confusion'},
+      {icon:'ti-trash',cls:'si-gray',label:'Cleanup Recommended',val:s.unusedNSGs,note:'No cost but good practice'},
+    ];
+  } else if(pg==='stoppedAKS') {
+    cards=[
+      {icon:'ti-brand-docker',cls:'si-gray',label:'Stopped AKS Clusters',val:s.stoppedAKS??0,note:'In stopped power state'},
+      {icon:'ti-currency-dollar',cls:'si-orange',label:'Est. Monthly Cost',val:fc((res.stoppedAKS||[]).reduce((a,r)=>a+(r.estMonthlyCost||0),0)),note:'Node VM charges still apply',vc:'sv-orange'},
+      {icon:'ti-server',cls:'si-red',label:'Node VMs Still Billed',val:(res.stoppedAKS||[]).reduce((a,r)=>a+(r.nodeCount||0),0),note:'Stopped cluster nodes still charge'},
+      {icon:'ti-refresh',cls:'si-gray',label:'Action',val:'Start or Delete',note:'Start to resume, delete to stop billing'},
+    ];
+  } else if(pg==='stoppedAppSvc') {
+    const fnApps=(res.stoppedAppSvc||[]).filter(a=>a.kind==='Function App').length;
+    cards=[
+      {icon:'ti-world-www',cls:'si-gray',label:'Stopped App Services',val:s.stoppedAppSvc??0,note:'Web apps + function apps stopped'},
+      {icon:'ti-currency-dollar',cls:'si-orange',label:'Est. Monthly Cost',val:fc((res.stoppedAppSvc||[]).reduce((a,r)=>a+(r.estMonthlyCost||0),0)),note:'App Service Plan still billed',vc:'sv-orange'},
+      {icon:'ti-function',cls:'si-blue',label:'Function Apps',val:fnApps,note:'Stopped function apps'},
+      {icon:'ti-layout',cls:'si-gray',label:'Web Apps',val:(res.stoppedAppSvc||[]).length-fnApps,note:'Stopped web apps'},
+    ];
+  } else if(pg==='stoppedContainerApps') {
+    cards=[
+      {icon:'ti-box',cls:'si-gray',label:'Stopped Container Apps',val:s.stoppedContainerApps??0,note:'Zero replicas or stopped'},
+      {icon:'ti-currency-dollar',cls:'si-green',label:'Direct Cost',val:'~$0',note:'No charge at zero replicas',vc:'sv-green'},
+      {icon:'ti-alert-triangle',cls:'si-orange',label:'Review Recommended',val:s.stoppedContainerApps??0,note:'May indicate abandoned workloads'},
+      {icon:'ti-trash',cls:'si-gray',label:'Cleanup Candidate',val:s.stoppedContainerApps??0,note:'Delete if no longer needed'},
+    ];
+  } else if(pg==='emptyLBs') {
+    const std=(res.emptyLBs||[]).filter(l=>l.sku==='Standard').length;
+    cards=[
+      {icon:'ti-adjustments-horizontal',cls:'si-gray',label:'Empty Load Balancers',val:s.emptyLBs,note:'No backend pool members'},
+      {icon:'ti-currency-dollar',cls:'si-orange',label:'Monthly Waste',val:fc(pageCost),note:'Standard LBs still billed',vc:'sv-orange'},
+      {icon:'ti-bolt',cls:'si-red',label:'Standard SKU',val:std,note:'~$18/mo even when empty'},
+      {icon:'ti-circle',cls:'si-green',label:'Basic SKU',val:s.emptyLBs-std,note:'Free when empty'},
+    ];
+  }
+
+  document.getElementById('stat-grid').innerHTML = cards.map(c=>`
+    <div class="stat">
+      <div class="stat-icon ${c.cls}"><i class="ti ${c.icon}"></i></div>
+      <div><div class="stat-label">${c.label}</div><div class="stat-val ${c.vc||''}">${c.val??'—'}</div><div class="stat-note">${c.note}</div></div>
+    </div>`).join('');
+}
+
+function setPage(pg) {
+  state.currentPage=pg; state.tab='all'; state.page=1;
+  document.querySelectorAll('.nav').forEach(n=>n.classList.remove('active'));
+  const navEl=document.getElementById(PAGES[pg]?.navId);
+  if(navEl) navEl.classList.add('active');
+  document.getElementById('pg-title').innerHTML=PAGES[pg]?.title||pg;
+  document.getElementById('pg-sub').textContent=PAGES[pg]?.sub||'';
+  document.getElementById('page-label').innerHTML=PAGES[pg]?.label||pg;
+  document.getElementById('search').value='';
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelector('.tab').classList.add('active');
+  const isDash = pg==='dashboard';
+  document.getElementById('dash-view').style.display  = isDash ? '' : 'none';
+  document.getElementById('table-view').style.display = isDash ? 'none' : '';
+  renderStatCards();
+  if(isDash){ setTimeout(()=>renderDashboard(), 50); return; }
+  renderCurrentPage();
+  populateFilters();
+}
+
+function setTab(tab, el) {
+  state.tab=tab; state.page=1;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  applyFilters();
+}
+
+function populateFilters() {
+  const res = state.data?.resources?.[state.currentPage] || [];
+  const pg  = state.currentPage;
+  if(pg === 'dashboard') return;
+
+  // Subscriptions — from scan data, dynamic
+  const subSel = document.getElementById('filter-sub');
+  const locSel = document.getElementById('filter-loc');
+  if(!subSel || !locSel) return;
+
+  const subs = [...new Set(res.map(r=>r.subscription).filter(Boolean))].sort();
+  const locs = [...new Set(res.map(r=>(r.location||'').toLowerCase()).filter(Boolean))].sort();
+
+  const curSub = subSel.value;
+  const curLoc = locSel.value;
+
+  subSel.innerHTML = '<option value="">All Subscriptions</option>' +
+    subs.map(s=>`<option value="${s}"${s===curSub?' selected':''}>${s}</option>`).join('');
+  locSel.innerHTML = '<option value="">All Locations</option>' +
+    locs.map(l=>`<option value="${l}"${l===curLoc?' selected':''}>${l}</option>`).join('');
+}
+
+function applyFilters() {
+  const raw = state.data?.resources?.[state.currentPage] || [];
+  const q   = (document.getElementById('search')?.value||'').toLowerCase();
+  const sub = document.getElementById('filter-sub')?.value||'';
+  const loc = document.getElementById('filter-loc')?.value||'';
+
+  state.filtered = raw.filter(r => {
+    const matchTab =
+      state.tab==='all' ||
+      (state.tab==='deallocated' && r.powerState && r.powerState.toLowerCase().includes('deallocated')) ||
+      (state.tab==='billed' && r.stillBilled);
+    const matchSub = !sub || r.subscription === sub;
+    const matchLoc = !loc || (r.location||'').toLowerCase() === loc;
+    const matchQ   = !q ||
+      (r.name||'').toLowerCase().includes(q) ||
+      (r.resourceGroup||'').toLowerCase().includes(q) ||
+      (r.subscription||'').toLowerCase().includes(q) ||
+      (r.location||'').toLowerCase().includes(q);
+    return matchTab && matchSub && matchLoc && matchQ;
+  });
+  state.page = 1;
+  renderTable();
+}
+function renderCurrentPage() {
+  if(!state.data) return setTableLoading();
+  const raw = state.data.resources?.[state.currentPage] || [];
+  const billed = raw.filter(r=>r.stillBilled).length;
+  const deal   = raw.filter(r=>r.powerState && r.powerState.toLowerCase().includes('deallocated')).length;
+  document.getElementById('tc-all').textContent  = raw.length;
+  document.getElementById('tc-deal').textContent = deal;
+  document.getElementById('tc-bill').textContent = billed;
+  const showVmTabs = state.currentPage==='stoppedVMs';
+  document.getElementById('tab-deal').style.display = showVmTabs ? '' : 'none';
+  document.getElementById('tab-bill').style.display = showVmTabs ? '' : 'none';
+  state.filtered = raw;
+  renderTable();
+}
+
+const HEADS = {
+  stoppedVMs:      [['chk','3%'],['Subscription','14%'],['VM Details','22%'],['Location & Size','14%'],['State & Type','14%'],['Stopped Duration','11%'],['Billed/mo','10%'],['Actions','8%']],
+  unattachedDisks: [['chk','3%'],['Subscription','16%'],['Disk Name','22%'],['Resource Group','18%'],['Location','11%'],['Size & SKU','14%'],['Est. Cost/mo','10%'],['Actions','8%']],
+  unattachedPIPs:  [['chk','3%'],['Subscription','16%'],['IP Name','22%'],['Resource Group','18%'],['Location','11%'],['SKU','14%'],['Est. Cost/mo','10%'],['Actions','8%']],
+  default:         [['chk','3%'],['Subscription','16%'],['Name','24%'],['Resource Group','20%'],['Location','13%'],['Est. Cost/mo','12%'],['Actions','8%']],
+};
+
+function renderTable() {
+  const heads = HEADS[state.currentPage] || HEADS.default;
+  document.getElementById('tbl-head').innerHTML = '<tr>'+heads.map(([h,w])=>`<th style="width:${w}">${h==='chk'?'<input type="checkbox" id="chk-all" onchange="toggleAll(this)">':h}</th>`).join('')+'</tr>';
+
+  const slice = state.filtered.slice((state.page-1)*PAGE_SIZE, state.page*PAGE_SIZE);
+  if(slice.length===0) {
+    document.getElementById('tbl-body').innerHTML = `<tr class="state-row"><td colspan="${heads.length}"><i class="ti ti-server-off"></i>No resources match your filter.</td></tr>`;
+  } else {
+    document.getElementById('tbl-body').innerHTML = slice.map(r=>renderRow(r)).join('');
+  }
+  const total=state.filtered.length, start=(state.page-1)*PAGE_SIZE+1, end=Math.min(state.page*PAGE_SIZE,total);
+  document.getElementById('pag-info').textContent = total ? `Showing ${start}–${end} of ${total} results` : 'No results';
+  renderPag();
+}
+
+function renderRow(r) {
+  const pg = state.currentPage;
+  const det = `<td><button class="btn-det" onclick='showDetail(${JSON.stringify(JSON.stringify(r))})'>Details</button></td>`;
+  const chk = `<td><input type="checkbox" class="row-chk"></td>`;
+  const sub = `<td><div class="sub-name">${r.subscription||'—'}</div><div class="sub-id">${(r.subscriptionId||'').substring(0,8)}…</div></td>`;
+  const cost = `<td><div class="cost-v">$${(r.estMonthlyCost||0).toFixed(2)}</div><div class="cost-n">Est./mo</div></td>`;
+
+  if(pg==='stoppedVMs') {
+    const ps=r.powerState||'';
+    const badge=r.stillBilled?'<span class="badge bs">Stopped</span>':'<span class="badge bd">Deallocated</span>';
+    const billing=r.stillBilled?'<div class="billed-warn">⚠ Compute billed</div>':'<div class="free-note">Compute FREE</div>';
+    const days=r.stoppedDays||0;
+    const durCls=days>90?'hi':days>30?'md':'';
+    const durTxt=days>90?'> 90 days':days>30?'> 30 days':days+' days';
+    return `<tr>${chk}${sub}
+      <td><div class="vm-name"><i class="ti ti-server" style="font-size:14px"></i>${r.name}</div><div class="vm-rg">⊙ ${r.resourceGroup}</div></td>
+      <td><div>${r.location}</div><span class="size-tag">${r.size||''}</span></td>
+      <td>${badge}${billing}</td>
+      <td><div class="dur ${durCls}"><i class="ti ti-clock"></i>${durTxt}</div></td>
+      <td><div class="cost-v">$${(r.diskCost||r.estMonthlyCost||0).toFixed(2)}</div><div class="cost-n">Disks + IPs</div></td>
+      ${det}</tr>`;
+  }
+  if(pg==='unattachedDisks') {
+    return `<tr>${chk}${sub}
+      <td><div class="vm-name"><i class="ti ti-device-floppy" style="font-size:14px"></i>${r.name}</div></td>
+      <td><div class="vm-rg">${r.resourceGroup}</div></td>
+      <td>${r.location}</td>
+      <td><div>${r.sizeGB} GB</div><span class="size-tag">${r.sku||''}</span></td>
+      ${cost}${det}</tr>`;
+  }
+  if(pg==='unattachedPIPs') {
+    return `<tr>${chk}${sub}
+      <td><div class="vm-name"><i class="ti ti-world" style="font-size:14px"></i>${r.name}</div></td>
+      <td><div class="vm-rg">${r.resourceGroup}</div></td>
+      <td>${r.location}</td>
+      <td><span class="size-tag">${r.sku||'Basic'}</span></td>
+      ${cost}${det}</tr>`;
+  }
+  if(pg==='stoppedAKS') {
+    return `<tr>${chk}${sub}
+      <td><div class="vm-name"><i class="ti ti-brand-docker" style="font-size:14px"></i>${r.name}</div></td>
+      <td><div class="vm-rg">${r.resourceGroup}</div></td>
+      <td>${r.location}</td>
+      <td><span class="size-tag">${r.kubernetesVersion||'—'}</span></td>
+      <td>${r.nodeCount??0} nodes</td>
+      ${cost}${det}</tr>`;
+  }
+  if(pg==='stoppedAppSvc') {
+    return `<tr>${chk}${sub}
+      <td><div class="vm-name"><i class="ti ti-world-www" style="font-size:14px"></i>${r.name}</div></td>
+      <td><div class="vm-rg">${r.resourceGroup}</div></td>
+      <td>${r.location}</td>
+      <td><span class="size-tag">${r.kind||'Web App'}</span></td>
+      <td><div class="vm-rg">${r.appServicePlan||'—'}</div></td>
+      ${cost}${det}</tr>`;
+  }
+  if(pg==='stoppedContainerApps') {
+    return `<tr>${chk}${sub}
+      <td><div class="vm-name"><i class="ti ti-box" style="font-size:14px"></i>${r.name}</div></td>
+      <td><div class="vm-rg">${r.resourceGroup}</div></td>
+      <td>${r.location}</td>
+      <td>${r.minReplicas??0} replicas</td>
+      ${cost}${det}</tr>`;
+  }
+  return `<tr>${chk}${sub}
+    <td><div class="vm-name">${r.name}</div><div class="vm-rg">${r.resourceGroup}</div></td>
+    <td>${r.location}</td>
+    ${cost}${det}</tr>`;
+}
+
+function setTableLoading() {
+  document.getElementById('tbl-head').innerHTML='';
+  document.getElementById('tbl-body').innerHTML=`<tr class="state-row"><td colspan="8"><i class="ti ti-refresh spin"></i>Loading data from Azure…</td></tr>`;
+}
+
+function renderPag() {
+  const total=Math.ceil(state.filtered.length/PAGE_SIZE);
+  let html=`<div class="pb" onclick="goPage(${state.page-1})"><i class="ti ti-chevron-left" style="font-size:13px"></i></div>`;
+  for(let i=1;i<=Math.min(total,7);i++) html+=`<div class="pb${i===state.page?' act':''}" onclick="goPage(${i})">${i}</div>`;
+  if(total>7) html+=`<div class="pb" style="border:none;cursor:default">…</div>`;
+  html+=`<div class="pb" onclick="goPage(${state.page+1})"><i class="ti ti-chevron-right" style="font-size:13px"></i></div>`;
+  document.getElementById('pag-btns').innerHTML=html;
+}
+
+function goPage(p) {
+  const max=Math.ceil(state.filtered.length/PAGE_SIZE);
+  if(p<1||p>max) return;
+  state.page=p; renderTable();
+}
+
+function toggleAll(el) { document.querySelectorAll('.row-chk').forEach(c=>c.checked=el.checked); }
+
+function showDetail(jsonStr) {
+  const r=JSON.parse(jsonStr);
+  document.getElementById('modal-title').textContent=r.name;
+  const rows=[
+    ['Resource type', state.currentPage.replace(/([A-Z])/g,' $1').trim()],
+    ['Subscription', r.subscription||'—'],
+    ['Subscription ID', r.subscriptionId||'—'],
+    ['Resource group', r.resourceGroup||'—'],
+    ['Location', r.location||'—'],
+    r.size ? ['VM size', r.size] : null,
+    r.powerState ? ['Power state', r.powerState] : null,
+    r.sizeGB ? ['Disk size', r.sizeGB+' GB'] : null,
+    r.sku ? ['SKU', r.sku] : null,
+    r.stillBilled!=null ? ['Still billed', r.stillBilled ? '⚠ Yes — compute charges active' : 'No — deallocated'] : null,
+    ['Est. monthly cost', '$'+(r.estMonthlyCost||r.diskCost||0).toFixed(2)],
+  ].filter(Boolean);
+  const tags=r.tags&&Object.keys(r.tags).length ? `<div class="detail-row"><div class="detail-key">Tags</div><div class="detail-val"><div class="tags-wrap">${Object.entries(r.tags).map(([k,v])=>`<span class="tag-pill">${k}: ${v}</span>`).join('')}</div></div></div>` : '';
+  document.getElementById('modal-body').innerHTML=rows.map(([k,v])=>`<div class="detail-row"><div class="detail-key">${k}</div><div class="detail-val ${k.includes('ID')?'detail-mono':''}">${v}</div></div>`).join('')+tags;
+  document.getElementById('overlay').classList.add('show');
+}
+
+function closeModal() { document.getElementById('overlay').classList.remove('show'); }
+
+function exportCSV() {
+  const data=state.filtered;
+  if(!data.length) return toast('Nothing to export');
+  const keys=Object.keys(data[0]).filter(k=>k!=='tags');
+  const rows=[keys,...data.map(r=>keys.map(k=>JSON.stringify(r[k]??'')))];
+  const csv=rows.map(r=>r.join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download=`cloudops-${state.currentPage}-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  toast('CSV downloaded');
+}
+
+setTableLoading();
+// ── Dashboard charts ──────────────────────────────────────────────────────────
+let chartInstances = {};
+
+function destroyChart(id) {
+  if(chartInstances[id]){ chartInstances[id].destroy(); delete chartInstances[id]; }
+}
+
+async function renderDashboard() {
+  const dv = document.getElementById('dash-view');
+  if(dv) dv.style.display = '';
+  if(!state.data) return;
+
+  const res  = state.data.resources || {};
+  const subs = state.data.subscriptions || [];
+
+  const COLORS     = ['#2563eb','#d97706','#dc2626','#7c3aed','#0891b2','#65a30d','#8b5cf6','#f59e0b','#06b6d4'];
+  const LABELS     = ['Stopped VMs','Unattached Disks','Public IPs','NICs','NSGs','Load Balancers','AKS Clusters','App Services','Container Apps'];
+  const KEYS_D     = ['stoppedVMs','unattachedDisks','unattachedPIPs','unattachedNICs','unusedNSGs','emptyLBs','stoppedAKS','stoppedAppSvc','stoppedContainerApps'];
+  const SUB_COLORS = ['#2563eb','#7c3aed','#0891b2','#65a30d','#d97706','#dc2626','#f59e0b','#8b5cf6','#06b6d4','#84cc16'];
+
+  const allItems   = Object.values(res).flat();
+  const subCosts   = subs.map(s => Math.round(allItems.filter(r=>r.subscriptionId===s.id).reduce((a,r)=>a+(r.estMonthlyCost||0),0)*100)/100);
+  const subCounts  = subs.map(s => allItems.filter(r=>r.subscriptionId===s.id).length);
+  const shortNames = subs.map(s => s.name.replace('Aptean-Common-Tech-Prod','ACT-Prod').replace('Aptean-Common-Tech','ACT'));
+  const costs9     = KEYS_D.map(k=>{ const items=res[k]||[]; return Math.round(items.reduce((a,r)=>a+(r.estMonthlyCost||0),0)*100)/100; });
+  const counts9    = KEYS_D.map(k=>(res[k]||[]).length);
+  const data9      = costs9.map((c,i)=> c>0 ? c : Math.max(counts9[i]*0.3, 0.5));
+  const shortLbls  = ['VMs','Disks','PIPs','NICs','NSGs','LBs','AKS','App Svc','CA'];
+
+  // ── 1. Waste by Subscription ──────────────────────────────────────────
+  destroyChart('subpie');
+  chartInstances['subpie'] = new Chart(document.getElementById('chart-subpie').getContext('2d'),{
+    type:'doughnut',
+    data:{ labels:shortNames, datasets:[{ data:subCosts, backgroundColor:SUB_COLORS.slice(0,subs.length), borderWidth:2, borderColor:'#fff' }]},
+    options:{ responsive:true, maintainAspectRatio:true, cutout:'65%',
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:ctx=>' $'+ctx.raw+'/mo' }}}}
+  });
+  document.getElementById('subpie-legend').innerHTML = shortNames.map((n,i)=>`
+    <div class="leg-item"><span class="leg-dot" style="background:${SUB_COLORS[i]}"></span><span>${n}</span><span class="leg-val">$${subCosts[i]}</span></div>`).join('');
+
+  // ── 2. Breakdown by Resource Type (all 9, no scroll) ─────────────────
+  destroyChart('donut');
+  chartInstances['donut'] = new Chart(document.getElementById('chart-donut').getContext('2d'),{
+    type:'doughnut',
+    data:{ labels:LABELS, datasets:[{ data:data9, backgroundColor:COLORS, borderWidth:2, borderColor:'#fff' }]},
+    options:{ responsive:true, maintainAspectRatio:true, cutout:'62%',
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:ctx=>{ const i=ctx.dataIndex; return costs9[i]>0?' $'+costs9[i]+'/mo':' '+counts9[i]+' items'; }}}}}
+  });
+  document.getElementById('donut-legend').innerHTML = LABELS.map((l,i)=>`
+    <div class="leg-item"><span class="leg-dot" style="background:${COLORS[i]}"></span><span>${l}</span><span class="leg-val">${costs9[i]>0?'$'+costs9[i]:counts9[i]+' items'}</span></div>`).join('');
+
+  // ── 3. Resources by Subscription ─────────────────────────────────────
+  destroyChart('subbar');
+  chartInstances['subbar'] = new Chart(document.getElementById('chart-subbar').getContext('2d'),{
+    type:'bar',
+    data:{ labels:shortNames, datasets:[{ data:subCounts, backgroundColor:SUB_COLORS.slice(0,subs.length), borderRadius:6, borderSkipped:false }]},
+    options:{ responsive:true, maintainAspectRatio:true,
+      plugins:{ legend:{display:false} },
+      scales:{ y:{ beginAtZero:true, ticks:{stepSize:1} }}}
+  });
+
+  // ── 4 & 6. Trend charts — fetch history ───────────────────────────────
+  let history = [];
+  try { const r = await fetch(`${API}/history`); history = await r.json(); } catch {}
+
+  destroyChart('waste');
+  if(history.length < 2){
+    document.getElementById('chart-waste').style.display='none';
+    document.getElementById('nd-waste').style.display='';
+  } else {
+    document.getElementById('chart-waste').style.display='';
+    document.getElementById('nd-waste').style.display='none';
+    chartInstances['waste'] = new Chart(document.getElementById('chart-waste').getContext('2d'),{
+      type:'line',
+      data:{ labels:history.map(h=>h.date), datasets:[{
+        label:'Waste', data:history.map(h=>h.totalWaste),
+        borderColor:'#dc2626', backgroundColor:'rgba(220,38,38,0.08)',
+        tension:0.4, fill:true, pointRadius:4, pointBackgroundColor:'#dc2626'
+      }]},
+      options:{ responsive:true, maintainAspectRatio:true,
+        plugins:{ legend:{display:false} },
+        scales:{ y:{ beginAtZero:true, ticks:{callback:v=>'$'+v} }, x:{ ticks:{maxTicksLimit:6} }}}
+    });
+  }
+
+  destroyChart('count');
+  if(history.length < 2){
+    document.getElementById('chart-count').style.display='none';
+    document.getElementById('nd-count').style.display='';
+  } else {
+    document.getElementById('chart-count').style.display='';
+    document.getElementById('nd-count').style.display='none';
+    chartInstances['count'] = new Chart(document.getElementById('chart-count').getContext('2d'),{
+      type:'line',
+      data:{ labels:history.map(h=>h.date), datasets:[{
+        label:'Resources', data:history.map(h=>h.totalUnused),
+        borderColor:'#2563eb', backgroundColor:'rgba(37,99,235,0.08)',
+        tension:0.4, fill:true, pointRadius:4, pointBackgroundColor:'#2563eb'
+      }]},
+      options:{ responsive:true, maintainAspectRatio:true,
+        plugins:{ legend:{display:false} },
+        scales:{ y:{ beginAtZero:true }, x:{ ticks:{maxTicksLimit:6} }}}
+    });
+  }
+
+  // ── 5. Resource Count by Type (all 9) ─────────────────────────────────
+  destroyChart('bar');
+  chartInstances['bar'] = new Chart(document.getElementById('chart-bar').getContext('2d'),{
+    type:'bar',
+    data:{ labels:shortLbls, datasets:[{ data:counts9, backgroundColor:COLORS, borderRadius:6, borderSkipped:false }]},
+    options:{ responsive:true, maintainAspectRatio:true,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>' '+ctx.raw+' resources'}} },
+      scales:{ y:{ beginAtZero:true, ticks:{stepSize:1} }, x:{ ticks:{font:{size:10}} }}}
+  });
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+setPage('dashboard');
+
+(async () => {
+  try {
+    // Check if fresh cache is available — load instantly if so
+    const st = await fetch(`${API}/status`);
+    const status = await st.json();
+
+    if (status.cacheAvailable) {
+      document.getElementById('scan-title').textContent = 'Loading cached data...';
+      const res  = await fetch(`${API}/scan`);
+      const data = await res.json();
+      if (!data.error) {
+        state.data = data;
+        updateUI();
+        if (state.currentPage === 'dashboard') setTimeout(()=>renderDashboard(), 100);
+        const ts = data.summary?.scannedAt ? new Date(data.summary.scannedAt).toLocaleTimeString() : '';
+        toast(`Data loaded from cache (scanned at ${ts})`, 4000);
+        return;
+      }
+    }
+
+    // No cache — show prompt, let user click Run Scan Now
+    document.getElementById('scan-title').textContent  = 'No scan data yet';
+    document.getElementById('scan-sub').textContent    = 'Click Run Scan Now to fetch live data from Azure (~1 min).';
+    document.getElementById('tbl-body').innerHTML = `<tr class="state-row"><td colspan="8">
+      <i class="ti ti-radar"></i>No data yet — click <b>Run Scan Now</b> to start.
+    </td></tr>`;
+
+  } catch (e) {
+    document.getElementById('scan-title').textContent = 'Connection failed';
+    document.getElementById('scan-sub').textContent   = 'Make sure the backend is running: node server.js';
+    console.error('Init error:', e);
+  }
+})();
+</script>
+</body>
+</html>
