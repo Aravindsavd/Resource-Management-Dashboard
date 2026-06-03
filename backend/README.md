@@ -253,19 +253,6 @@ az ad sp create-for-rbac `
 node server.js   # make sure backend is running
 ```
 
-**VMs showing 0**
-```powershell
-# Check if PowerState property is available in your Az version
-$vms = Get-AzVM -Status
-$vms | Select-Object Name, PowerState
-```
-
-**Container Apps always 0**
-```
-http://localhost:3000/api/containerapps-debug
-```
-Check the `runningState` and `allPropertyKeys` fields in the response.
-
 **Az module version conflicts**
 ```powershell
 # Check what's loaded
